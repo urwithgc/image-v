@@ -1,6 +1,6 @@
 from fastcore.parallel import threaded
 from fasthtml.common import *
-import uuid, os, uvicorn, requests
+import uuid, os, uvicorn, requests, glob
 from PIL import Image
 import io
 from dotenv import load_dotenv
@@ -36,7 +36,17 @@ def home():
     add = Form(Group(inp, Button("Generate")), hx_post="/", target_id='gen-list', hx_swap="afterbegin")
     gen_containers = [generation_preview(g) for g in gens(limit=10)]  # Start with last 10
     gen_list = Div(*reversed(gen_containers), id='gen-list', cls="row")  # flexbox container: class = row
-    return Title('Image Generation Demo'), Main(H1('Magic Image Generation'), add, gen_list, cls='container')
+
+    # Display the number of images
+    image_count_div = Div(id='image-count', hx_get="/image_count", hx_trigger="load", hx_swap="innerHTML")
+
+    return Title('Image Generation Demo'), Main(
+        H1('Magic Image Generation'),
+        add,
+        image_count_div,  # Add the image count display
+        gen_list,
+        cls='container'
+    )
 
 # Show the image (if available) and prompt for a generation
 def generation_preview(g):
@@ -60,7 +70,8 @@ def preview(id:int):
 
 # For images, CSS, etc.
 @app.get("/{fname:path}.{ext:static}")
-def static(fname:str, ext:str): return FileResponse(f'{fname}.{ext}')
+def static(fname:str, ext:str):
+    return FileResponse(f'{fname}.{ext}')
 
 # Generation route
 @app.post("/")
@@ -90,6 +101,13 @@ def generate_and_save(prompt, id, folder):
     image = Image.open(io.BytesIO(image_bytes))
     image.save(f"{folder}/{id}.png")
     return True
+
+# Count PNG images
+@app.get("/image_count")
+def image_count():
+    png_files = glob.glob("data/gens/**/*.png", recursive=True)
+    count = len(png_files)
+    return f"Number of images generated: {count}"
 
 if __name__ == '__main__':
     uvicorn.run("main:app", host='0.0.0.0', port=int(os.getenv("PORT", default=8000)))
